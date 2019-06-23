@@ -1,0 +1,17 @@
+[package]
+name = "graphs"
+version = "0.1.0"
+authors = ["Ryan <rnleach@users.noreply.github.com>"]
+description="A place for me to prototype making graphs."
+edition = "2018"
+publish = false
+
+[dependencies]
+bufkit-data="0.8.1"
+chrono = "0.4.2"
+crossbeam-channel = "0.3.8"
+itertools = "^0.8.0"
+metfor = "^0.7.0"
+sounding-analysis="^0.11.3"
+sounding-bufkit="^0.11"
+strum="^0.15.0"

@@ -1,0 +1,25 @@
+//
+// Project specific
+//
+/images/
+/text/
+
+//
+// cargo and rustc
+//
+target
+**/*.rs.bk
+Cargo.lock
+
+//
+// Editor specific
+//
+*.sublime*
+.vscode
+*.swp
+tags
+
+//
+// OS specific
+//
+.DS_Store
