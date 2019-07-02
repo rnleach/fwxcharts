@@ -3,7 +3,6 @@
 //!
 //! These functions produce iterators suitable for the plot functions in this library.
 //!
-// TODO functions for loading files from disk.
 
 use crate::timeseries::{EnsembleList, MetaData};
 use bufkit_data::{Archive, BufkitDataErr, Model, Site};

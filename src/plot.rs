@@ -103,7 +103,6 @@ pub fn save_all(
 const GP_INIT: &str = include_str!("plot/initialize.plt");
 const GP_PLOT_ENS: &str = include_str!("plot/ens_template.plt");
 const GP_PLOT_MRG: &str = include_str!("plot/mrg_template.plt");
-const GP_PLOT: &str = include_str!("plot/summary_template.plt");
 const GP_DATE_FORMAT: &str = "%Y-%m-%d-%H";
 
 /// Create a pipe to a gnuplot process and set up the terminal, etc
@@ -206,63 +205,6 @@ fn gp_plot_ens(
 
     // Draw the graph
     gp.write_all(GP_PLOT_ENS.as_bytes())?;
-
-    Ok(())
-}
-
-/// Plot a set of data
-#[deprecated]
-fn gp_plot_old(
-    gp: &mut ChildStdin,
-    ens: EnsembleSeries<AnalyzedData>,
-    mg: MergedSeries<Vec<CapePartition>>,
-) -> Result<(), Box<dyn Error>> {
-    let EnsembleSeries::<AnalyzedData> { meta, .. } = &ens;
-    let MergedSeries::<Vec<CapePartition>> { meta: meta_mg, .. } = &mg;
-
-    assert_eq!(meta, meta_mg);
-
-    //
-    // Set variables for the gnuplot script to use for ranges, etc
-    //
-    writeln!(gp, "num_hours={}", (meta.end - meta.now).num_hours())?;
-    writeln!(gp, "now_time=\"{}\"", meta.now.format(GP_DATE_FORMAT),)?;
-    writeln!(gp, "start_time=\"{}\"", meta.start.format(GP_DATE_FORMAT))?;
-    writeln!(gp, "end_time=\"{}\"", meta.end.format(GP_DATE_FORMAT))?;
-    writeln!(
-        gp,
-        "main_title=\"Fire Weather Parameters - {} - {}\"",
-        meta.site.name.as_ref().unwrap_or(&meta.site.id),
-        meta.model.to_uppercase()
-    )?;
-    writeln!(
-        gp,
-        "output_name=\"{}_{}.png\"",
-        meta.site.id,
-        meta.model.to_uppercase()
-    )?;
-
-    // Write out the ensemble data
-    writeln!(gp, "$data << EOD")?;
-    write_ensemble_data(&ens, gp)?;
-    writeln!(gp, "EOD")?;
-
-    // Make a merged data and write that out too.
-    let merged = ens.merge();
-
-    writeln!(gp, "$merged_data << EOD")?;
-    write_merged_data(&merged, gp)?;
-    writeln!(gp, "EOD")?;
-
-    // Write out the merged time series data for the heat map
-    writeln!(gp, "$wet_dry_data << EOD")?;
-    write_merged_heat_map_data(&mg, gp)?;
-    writeln!(gp, "EOD")?;
-
-    // Draw the graph
-    gp.write_all(GP_PLOT.as_bytes())?;
-
-    println!("Finished plot {}/{}", meta_mg.site.id, meta_mg.model);
 
     Ok(())
 }
