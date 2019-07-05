@@ -5,6 +5,7 @@
 //!
 
 use crate::timeseries::{EnsembleList, MetaData};
+use bufcli::{ClimoElement, ClimoQueryInterface, HourlyDeciles};
 use bufkit_data::{Archive, BufkitDataErr, Model, Site};
 use chrono::{Duration, NaiveDateTime, Utc};
 use itertools::iproduct;
@@ -163,6 +164,15 @@ pub fn load_all_sites_and_models<'a>(
                 .map_err(Into::into)
         }),
     )
+}
+
+/// Fetch the climatology for a specific parameter.
+pub fn load_hourly_climo(
+    climo_db: Option<&ClimoQueryInterface>,
+    meta: MetaData,
+    element: ClimoElement,
+) -> Option<HourlyDeciles> {
+    unimplemented!()
 }
 
 /// The number of days of data available for each model.

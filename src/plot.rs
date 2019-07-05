@@ -1,10 +1,10 @@
 //! Functions used for plotting data and producing output.
-
 use crate::{
     sources::StringData,
     timeseries::{EnsembleSeries, MergedSeries, MetaData},
-    types::{analyze, analyze_cape_partitions, parse_sounding, AnalyzedData, CapePartition},
+    types::{parse_sounding, AnalyzedData, CapePartition},
 };
+use bufcli::{ClimoQueryInterface, ClimoElement};
 use metfor::Quantity;
 use std::{
     error::Error,
@@ -23,6 +23,7 @@ use std::{
 pub fn plot_all(
     iter: impl Iterator<Item = StringData>,
     prefix: &str,
+    mut climo: Option<ClimoQueryInterface>,
 ) -> Result<(), Box<dyn Error>> {
     let gp_in = &mut launch_gnuplot(prefix)?;
 
@@ -39,7 +40,7 @@ pub fn plot_all(
         }
     })
     .map(|ens_ser_anal| {
-        let analyzed_data = ens_ser_anal.filter_map_inner(|anal| analyze(anal));
+        let analyzed_data = ens_ser_anal.filter_map_inner(AnalyzedData::analyze);
         (ens_ser_anal, analyzed_data)
     })
     .map(|(ens_ser_anal, analyzed_data)| {
@@ -47,13 +48,13 @@ pub fn plot_all(
         (merged_ser_anal, analyzed_data)
     })
     .map(|(merged_ser_anal, analyzed_data)| {
-        let cape_parts = merged_ser_anal.filter_map(|anal| analyze_cape_partitions(anal));
+        let cape_parts = merged_ser_anal.filter_map(CapePartition::analyze_cape_partitions);
         (analyzed_data, cape_parts)
     })
     .for_each(|(analyzed_data, cape_parts)| {
         gp_plot_ens(gp_in, &analyzed_data).unwrap_or(());
         let merged = analyzed_data.merge();
-        gp_plot_mrg(gp_in, &merged, &cape_parts).unwrap_or(());
+        gp_plot_mrg(gp_in, &merged, &cape_parts, climo.as_mut()).unwrap_or(());
     });
 
     Ok(())
@@ -68,6 +69,7 @@ pub fn plot_all(
 pub fn save_all(
     iter: impl Iterator<Item = StringData>,
     prefix: &str,
+    mut climo: Option<ClimoQueryInterface>,
 ) -> Result<(), Box<dyn Error>> {
     iter.filter_map(|ens_list_strings| {
         let start = ens_list_strings.meta.start;
@@ -82,7 +84,7 @@ pub fn save_all(
         }
     })
     .map(|ens_ser_anal| {
-        let analyzed_data = ens_ser_anal.filter_map_inner(|anal| analyze(anal));
+        let analyzed_data = ens_ser_anal.filter_map_inner(AnalyzedData::analyze);
         (ens_ser_anal, analyzed_data)
     })
     .map(|(ens_ser_anal, analyzed_data)| {
@@ -90,11 +92,11 @@ pub fn save_all(
         (merged_ser_anal, analyzed_data)
     })
     .map(|(merged_ser_anal, analyzed_data)| {
-        let cape_parts = merged_ser_anal.filter_map(|anal| analyze_cape_partitions(anal));
+        let cape_parts = merged_ser_anal.filter_map(CapePartition::analyze_cape_partitions);
         (analyzed_data, cape_parts)
     })
     .for_each(|(analyzed_data, cape_parts)| {
-        gp_save(prefix, analyzed_data, cape_parts).unwrap_or(())
+        gp_save(prefix, analyzed_data, cape_parts, climo.as_mut()).unwrap_or(())
     });
 
     Ok(())
@@ -128,6 +130,7 @@ fn gp_plot_mrg(
     gp: &mut ChildStdin,
     mg: &MergedSeries<AnalyzedData>,
     cape_parts: &MergedSeries<Vec<CapePartition>>,
+    climo: Option<&mut ClimoQueryInterface>,
 ) -> Result<(), Box<dyn Error>> {
     let MergedSeries::<AnalyzedData> { meta: meta_mg, .. } = &mg;
     let MergedSeries::<Vec<CapePartition>> {
@@ -165,6 +168,11 @@ fn gp_plot_mrg(
     // Write out the merged time series data for the heat map
     writeln!(gp, "$wet_dry_data << EOD")?;
     write_merged_heat_map_data(cape_parts, gp)?;
+    writeln!(gp, "EOD")?;
+
+    // Try to get the climate data for the HDW and add that to the data
+    writeln!(gp, "$hdw_climo << EOD")?;
+    write_hdw_climo(meta_mg, gp, climo)?;
     writeln!(gp, "EOD")?;
 
     // Draw the graph
@@ -214,6 +222,7 @@ fn gp_save(
     prefix: &str,
     ens: EnsembleSeries<AnalyzedData>,
     mg: MergedSeries<Vec<CapePartition>>,
+    climo: Option<&mut ClimoQueryInterface>,
 ) -> Result<(), Box<dyn Error>> {
     let EnsembleSeries::<AnalyzedData> { meta, .. } = &ens;
     let MergedSeries::<Vec<CapePartition>> { meta: meta_mg, .. } = &mg;
@@ -243,6 +252,14 @@ fn gp_save(
     ));
     let f_hm = &mut File::create(&fname_hm)?;
 
+    let fname_cli: PathBuf = PathBuf::from(&format!(
+        "{}/{}_{}_cli.dat",
+        prefix,
+        meta.site.id,
+        meta.model.to_uppercase()
+    ));
+    let f_cli = &mut File::create(&fname_cli)?;
+
     write_ensemble_data(&ens, f_ens)?;
 
     // Make a merged data and write that out too.
@@ -251,6 +268,8 @@ fn gp_save(
     write_merged_data(&merged, f_mrg)?;
 
     write_merged_heat_map_data(&mg, f_hm)?;
+
+    write_hdw_climo(&merged.meta, f_cli, climo)?;
 
     Ok(())
 }
@@ -368,6 +387,31 @@ fn write_merged_heat_map_data<W: Write>(
     Ok(())
 }
 
+/// Write out the climate data for the HDW
+fn write_hdw_climo<W: Write>(
+    meta: &MetaData,
+    dest: &mut W,
+    climo: Option<&mut ClimoQueryInterface>,
+) -> Result<(), Box<dyn Error>> {
+    let MetaData {
+        site,
+        model,
+        start,
+        end,
+        ..
+    } = meta;
+
+    if let Some(hourly_deciles) = climo.and_then(|climo_iface| {
+        climo_iface
+            .hourly_deciles(site, model, ClimoElement::HDW, *start, *end)
+            .ok()
+    }) {
+        unimplemented!()
+    }
+
+    Ok(())
+}
+
 /// Write a header to a data file/section in gnuplot comment form.
 fn write_meta_data_header<W: Write>(meta: &MetaData, dest: &mut W) -> Result<(), Box<dyn Error>> {
     writeln!(
@@ -382,6 +426,4 @@ fn write_meta_data_header<W: Write>(meta: &MetaData, dest: &mut W) -> Result<(),
     Ok(())
 }
 
-// TODO: make a function to plot the ensemble plumes
-// TODO: make a function to plot the merged data and heat map together
 // TODO: make a function to plot the de/e0 ratio vs hdw
