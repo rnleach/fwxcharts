@@ -1,3 +1,4 @@
+use bufcli::{ClimoDB, ClimoQueryInterface};
 use bufkit_data::Archive;
 use graphs::{load_all_sites_and_models, plot_all};
 use std::error::Error;
@@ -7,10 +8,12 @@ const ARCHIVE: &str = "/home/ryan/bufkit";
 
 fn main() -> Result<(), Box<dyn Error>> {
     let arch = Archive::connect(ARCHIVE)?;
+    let climo = ClimoDB::connect_or_create(ARCHIVE.as_ref())?;
+    let climo = ClimoQueryInterface::initialize(&climo);
 
     let string_data = load_all_sites_and_models(&arch, DAYS_BACK)?.filter_map(Result::ok);
 
-    plot_all(string_data, "images")?;
+    plot_all(string_data, "images", Some(climo))?;
 
     Ok(())
 }

@@ -7,7 +7,7 @@ edition = "2018"
 publish = false
 
 [dependencies]
-bufcli = {git = "https://github.com/rnleach/bufcli", tag="v0.4.3"}
+bufcli = {git = "https://github.com/rnleach/bufcli", tag="v0.4.4"}
 bufkit-data="0.8.1"
 chrono = "0.4.2"
 crossbeam-channel = "0.3.8"

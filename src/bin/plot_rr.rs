@@ -1,3 +1,5 @@
+#![type_length_limit = "1115086"]
+use bufcli::{ClimoDB, ClimoQueryInterface};
 use bufkit_data::{Archive, Model, Site};
 use chrono::{Duration, NaiveDate};
 use graphs::{load_for_site_and_date_and_time, load_from_files, plot_all, FileData};
@@ -8,6 +10,9 @@ const ARCHIVE: &str = "/home/ryan/bufkit";
 
 fn main() -> Result<(), Box<dyn Error>> {
     let arch = Archive::connect(ARCHIVE)?;
+    let climo = ClimoDB::connect_or_create(ARCHIVE.as_ref())?;
+    let climo = ClimoQueryInterface::initialize(&climo);
+
     let now = NaiveDate::from_ymd(2017, 9, 2).and_hms(12, 0, 0);
 
     let start_files = now;
@@ -169,10 +174,31 @@ fn main() -> Result<(), Box<dyn Error>> {
             now,
             DAYS_BACK,
         )?)
+        .chain(load_for_site_and_date_and_time(
+            &arch,
+            "c18",
+            Model::GFS,
+            now,
+            DAYS_BACK,
+        )?)
+        .chain(load_for_site_and_date_and_time(
+            &arch,
+            "c18",
+            Model::NAM,
+            now,
+            DAYS_BACK,
+        )?)
+        .chain(load_for_site_and_date_and_time(
+            &arch,
+            "c18",
+            Model::NAM4KM,
+            now,
+            DAYS_BACK,
+        )?)
         .chain(file_strings)
         .filter_map(Result::ok);
 
-    plot_all(string_data, "images")?;
+    plot_all(string_data, "images", Some(climo))?;
 
     Ok(())
 }

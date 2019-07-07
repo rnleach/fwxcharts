@@ -4,7 +4,7 @@ use graphs::{load_site, plot_all};
 use std::error::Error;
 
 const DAYS_BACK: i64 = 2;
-const ARCHIVE: &str = "/Users/ryan/bufkit";
+const ARCHIVE: &str = "/home/ryan/bufkit";
 
 fn main() -> Result<(), Box<dyn Error>> {
     let arch = Archive::connect(ARCHIVE)?;

@@ -23,7 +23,7 @@ impl ValidTime for AnalyzedData {
 
 impl ModelTimes for AnalyzedData {
     fn lead_time(&self) -> Option<Duration> {
-        Some(Duration::hours(self.lead_time as i64))
+        Some(Duration::hours(i64::from(self.lead_time)))
     }
 }
 

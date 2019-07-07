@@ -4,7 +4,8 @@ use crate::{
     timeseries::{EnsembleSeries, MergedSeries, MetaData},
     types::{parse_sounding, AnalyzedData, CapePartition},
 };
-use bufcli::{ClimoQueryInterface, ClimoElement};
+use bufcli::{ClimoElement, ClimoQueryInterface};
+use itertools::izip;
 use metfor::Quantity;
 use std::{
     error::Error,
@@ -393,6 +394,8 @@ fn write_hdw_climo<W: Write>(
     dest: &mut W,
     climo: Option<&mut ClimoQueryInterface>,
 ) -> Result<(), Box<dyn Error>> {
+    write_meta_data_header(meta, dest)?;
+
     let MetaData {
         site,
         model,
@@ -401,12 +404,43 @@ fn write_hdw_climo<W: Write>(
         ..
     } = meta;
 
+    writeln!(
+        dest,
+        "valid_time min 10th 20th 30th 40th median 60th 70th 80th 90th max"
+    )?;
+
     if let Some(hourly_deciles) = climo.and_then(|climo_iface| {
         climo_iface
             .hourly_deciles(site, model, ClimoElement::HDW, *start, *end)
             .ok()
     }) {
-        unimplemented!()
+        for (vt, deciles) in izip!(
+            hourly_deciles.valid_times.into_iter(),
+            hourly_deciles.deciles.into_iter(),
+        ) {
+            writeln!(
+                dest,
+                "{} {} {} {} {} {} {} {} {} {} {} {}",
+                vt.format(GP_DATE_FORMAT),
+                deciles[0],
+                deciles[1],
+                deciles[2],
+                deciles[3],
+                deciles[4],
+                deciles[5],
+                deciles[6],
+                deciles[7],
+                deciles[8],
+                deciles[9],
+                deciles[10],
+            )?;
+        }
+    } else {
+        writeln!(
+            dest,
+            "{} NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN",
+            start.format(GP_DATE_FORMAT),
+        )?;
     }
 
     Ok(())
