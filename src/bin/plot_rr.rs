@@ -6,17 +6,29 @@ use graphs::{load_for_site_and_date_and_time, load_from_files, plot_all, FileDat
 use std::error::Error;
 
 const DAYS_BACK: i64 = 4;
-const ARCHIVE: &str = "/home/ryan/bufkit";
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let arch = Archive::connect(ARCHIVE)?;
-    let climo = ClimoDB::connect_or_create(ARCHIVE.as_ref())?;
+    let home_dir = directories::UserDirs::new()
+        .expect("No UserDirs")
+        .home_dir()
+        .to_owned();
+    let archive = home_dir.join("bufkit");
+    let arch = Archive::connect(&archive)?;
+    let climo = ClimoDB::connect_or_create(&archive)?;
     let climo = ClimoQueryInterface::initialize(&climo);
 
     let now = NaiveDate::from_ymd(2017, 9, 2).and_hms(12, 0, 0);
 
     let start_files = now;
     let end_files = now + Duration::days(3);
+
+    let research_root = directories::UserDirs::new()
+        .expect("No UserDirs")
+        .document_dir()
+        .expect("No document_dir")
+        .join("Research")
+        .join("2017 Fire")
+        .join("Bufkit");
 
     let file_data = [
         FileData {
@@ -32,10 +44,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             start: start_files,
             end: end_files,
             files: vec![
-                "/home/ryan/Documents/2017 Fire/Bufkit/local_arw_krr1/2017090212.arw_krr1.buf"
-                    .to_owned(),
-                "/home/ryan/Documents/2017 Fire/Bufkit/local_arw_krr1/2017090312.arw_krr1.buf"
-                    .to_owned(),
+                research_root
+                    .join("local_arw_krr1")
+                    .join("2017090212.arw_krr1.buf"),
+                research_root
+                    .join("local_arw_krr1")
+                    .join("2017090312.arw_krr1.buf"),
             ],
         },
         FileData {
@@ -51,10 +65,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             start: start_files,
             end: end_files,
             files: vec![
-                "/home/ryan/Documents/2017 Fire/Bufkit/local_arw_krr2/2017090212.arw_krr2.buf"
-                    .to_owned(),
-                "/home/ryan/Documents/2017 Fire/Bufkit/local_arw_krr2/2017090312.arw_krr2.buf"
-                    .to_owned(),
+                research_root
+                    .join("local_arw_krr2")
+                    .join("2017090212.arw_krr2.buf"),
+                research_root
+                    .join("local_arw_krr2")
+                    .join("2017090312.arw_krr2.buf"),
             ],
         },
         FileData {
@@ -70,10 +86,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             start: start_files,
             end: end_files,
             files: vec![
-                "/home/ryan/Documents/2017 Fire/Bufkit/local_arw_krr3/2017090212.arw_krr3.buf"
-                    .to_owned(),
-                "/home/ryan/Documents/2017 Fire/Bufkit/local_arw_krr3/2017090312.arw_krr3.buf"
-                    .to_owned(),
+                research_root
+                    .join("local_arw_krr3")
+                    .join("2017090212.arw_krr3.buf"),
+                research_root
+                    .join("local_arw_krr3")
+                    .join("2017090312.arw_krr3.buf"),
             ],
         },
         FileData {
@@ -89,10 +107,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             start: start_files,
             end: end_files,
             files: vec![
-                "/home/ryan/Documents/2017 Fire/Bufkit/local_arw_krr4/2017090212.arw_krr4.buf"
-                    .to_owned(),
-                "/home/ryan/Documents/2017 Fire/Bufkit/local_arw_krr4/2017090312.arw_krr4.buf"
-                    .to_owned(),
+                research_root
+                    .join("local_arw_krr4")
+                    .join("2017090212.arw_krr4.buf"),
+                research_root
+                    .join("local_arw_krr4")
+                    .join("2017090312.arw_krr4.buf"),
             ],
         },
         FileData {
@@ -108,10 +128,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             start: start_files,
             end: end_files,
             files: vec![
-                "/home/ryan/Documents/2017 Fire/Bufkit/local_arw_krr5/2017090212.arw_krr5.buf"
-                    .to_owned(),
-                "/home/ryan/Documents/2017 Fire/Bufkit/local_arw_krr5/2017090312.arw_krr5.buf"
-                    .to_owned(),
+                research_root
+                    .join("local_arw_krr5")
+                    .join("2017090212.arw_krr5.buf"),
+                research_root
+                    .join("local_arw_krr5")
+                    .join("2017090312.arw_krr5.buf"),
             ],
         },
         FileData {
@@ -127,10 +149,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             start: start_files,
             end: end_files,
             files: vec![
-                "/home/ryan/Documents/2017 Fire/Bufkit/local_arw_ksee/2017090212.arw_ksee.buf"
-                    .to_owned(),
-                "/home/ryan/Documents/2017 Fire/Bufkit/local_arw_ksee/2017090312.arw_ksee.buf"
-                    .to_owned(),
+                research_root
+                    .join("local_arw_ksee")
+                    .join("2017090212.arw_ksee.buf"),
+                research_root
+                    .join("local_arw_ksee")
+                    .join("2017090312.arw_ksee.buf"),
             ],
         },
         FileData {
@@ -146,17 +170,24 @@ fn main() -> Result<(), Box<dyn Error>> {
             start: start_files,
             end: end_files,
             files: vec![
-                "/home/ryan/Documents/2017 Fire/Bufkit/local_arw_kmso/2017090212.arw_kmso.buf"
-                    .to_owned(),
-                "/home/ryan/Documents/2017 Fire/Bufkit/local_arw_kmso/2017090312.arw_kmso.buf"
-                    .to_owned(),
+                research_root
+                    .join("local_arw_kmso")
+                    .join("2017090212.arw_kmso.buf"),
+                research_root
+                    .join("local_arw_kmso")
+                    .join("2017090312.arw_kmso.buf"),
             ],
         },
     ];
 
     let file_strings = file_data
         .iter()
-        .filter_map(|fd| load_from_files(fd).ok())
+        .map(|fd| load_from_files(fd))
+        .inspect(|res| match res {
+            Ok(_) => {}
+            Err(e) => println!("{:?}", e),
+        })
+        .filter_map(|res| res.ok())
         .flat_map(|iter| iter);
 
     let string_data = load_for_site_and_date_and_time(&arch, "kmso", Model::GFS, now, DAYS_BACK)?

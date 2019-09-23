@@ -11,6 +11,7 @@
 #
 # heredocs:
 #   $data
+#
 
 #
 # Multiplot of fire weather indexes, multiple model runs.
@@ -54,7 +55,7 @@ set multiplot layout 4,1 title main_title font ",14"
 set tmargin screen 0.95
 set rmargin screen 0.85
 set lmargin screen 0.1
-set bmargin screen 0.75
+set bmargin screen 0.72
 set xtics scale 0
 set format x ''
 set ytics 100,100,700
@@ -63,50 +64,36 @@ unset colorbox
 set arrow from now_time, graph 0 to now_time, graph 1 nohead lc rgb "black"
 plot [start_time:end_time][0:700] $data u 1:5:2 w l lc palette t "HDW"
 #
-# Plot the second row which is the energies
+# Plot the second row which is the blow up dt
 #
-set tmargin screen 0.75
+set tmargin screen 0.72
 set rmargin screen 0.85
 set lmargin screen 0.1
-set bmargin screen 0.55
+set bmargin screen 0.49
 set xtics scale 0
-set ytics 500,1000,2500
+set ytics 2,2,18
 set grid
 set arrow from now_time, graph 0 to now_time, graph 1 nohead lc rgb "black"
-plot [start_time:end_time][0:3000] $data u 1:3:2 w l lc palette t "E0"
-#
-# Plot the third row which is the change in energy once a cloud forms.
-#
-set tmargin screen 0.55
-set rmargin screen 0.85
-set lmargin screen 0.1
-set bmargin screen 0.35
-set xtics scale 0
-set ytics 500,1000,2500
-set grid
-set arrow from now_time, graph 0 to now_time, graph 1 nohead lc rgb "black"
-plot [start_time:end_time][0:3000] $data u 1:4:2 w l lc palette t "dE"
+plot [start_time:end_time][0:20] $data u 1:3:2 w l lc palette t "Blow Up ΔT"
 #
 # Set up x-axis
 #
-set xtics nomirror scale 1 
+set xtics nomirror scale 1
 set format x "%m/%d %H"
 set xtics rotate by -45 offset 0, screen -0.035
 set xlabel "Date and hour [UTC]\n" font ",14" offset 0, screen -0.045
 #
-# Plot the bottom row which is the ratio of dE/E0
+# Plot the third row which is the blow up height.
 #
-set tmargin screen 0.35
+set tmargin screen 0.49
 set rmargin screen 0.85
 set lmargin screen 0.1
-set bmargin screen 0.15
+set bmargin screen 0.26
+set xtics scale 0
+set ytics 0,2000,15000
 set grid
-set logscale y
-set ytics (0.1, 0.5, 1.5, 5, 10, 25)
 set arrow from now_time, graph 0 to now_time, graph 1 nohead lc rgb "black"
-plot [start_time:end_time][0.01:50] $data u 1:($4/$3):2 w l lc palette     t "dE/E0",\
-				                    0.5                 w l lc rgb "black" notitle,\
-					                1.5                 w l lc rgb "black"  notitle
+plot [start_time:end_time][0:15000] $data u 1:4:2 w l lc palette t "Blow Up Height"
 #
 # Clean up
 #

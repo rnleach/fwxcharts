@@ -7,12 +7,13 @@ edition = "2018"
 publish = false
 
 [dependencies]
-bufcli = {git = "https://github.com/rnleach/bufcli", tag="v0.4.4"}
-bufkit-data="0.8.1"
+bufcli = {git = "https://github.com/rnleach/bufcli", tag="v0.5.1"}
+bufkit-data="^0.9"
 chrono = "0.4.2"
 crossbeam-channel = "0.3.8"
+directories = "^2.0"
 itertools = "^0.8.0"
 metfor = "^0.7.0"
-sounding-analysis="^0.11.3"
-sounding-bufkit="^0.11"
+sounding-analysis="^0.12.2"
+sounding-bufkit="^0.12"
 strum="^0.15.0"

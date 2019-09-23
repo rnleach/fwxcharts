@@ -2,7 +2,7 @@
 use crate::{
     sources::StringData,
     timeseries::{EnsembleSeries, MergedSeries, MetaData},
-    types::{parse_sounding, AnalyzedData, CapePartition},
+    types::{parse_sounding, AnalyzedData},
 };
 use bufcli::{ClimoElement, ClimoQueryInterface};
 use itertools::izip;
@@ -40,22 +40,11 @@ pub fn plot_all(
             Some(ens_ser_anal)
         }
     })
-    .map(|ens_ser_anal| {
-        let analyzed_data = ens_ser_anal.filter_map_inner(AnalyzedData::analyze);
-        (ens_ser_anal, analyzed_data)
-    })
-    .map(|(ens_ser_anal, analyzed_data)| {
-        let merged_ser_anal = ens_ser_anal.merge();
-        (merged_ser_anal, analyzed_data)
-    })
-    .map(|(merged_ser_anal, analyzed_data)| {
-        let cape_parts = merged_ser_anal.filter_map(CapePartition::analyze_cape_partitions);
-        (analyzed_data, cape_parts)
-    })
-    .for_each(|(analyzed_data, cape_parts)| {
-        gp_plot_ens(gp_in, &analyzed_data).unwrap_or(());
+    .map(|ens_ser_anal| ens_ser_anal.filter_map_inner(AnalyzedData::analyze))
+    .for_each(|analyzed_data| {
+        gp_plot_ens(gp_in, &analyzed_data).unwrap_or_else(|err| println!("{:?}", err));
         let merged = analyzed_data.merge();
-        gp_plot_mrg(gp_in, &merged, &cape_parts, climo.as_mut()).unwrap_or(());
+        gp_plot_mrg(gp_in, &merged, climo.as_mut()).unwrap_or_else(|err| println!("{:?}", err));
     });
 
     Ok(())
@@ -84,21 +73,8 @@ pub fn save_all(
             Some(ens_ser_anal)
         }
     })
-    .map(|ens_ser_anal| {
-        let analyzed_data = ens_ser_anal.filter_map_inner(AnalyzedData::analyze);
-        (ens_ser_anal, analyzed_data)
-    })
-    .map(|(ens_ser_anal, analyzed_data)| {
-        let merged_ser_anal = ens_ser_anal.merge();
-        (merged_ser_anal, analyzed_data)
-    })
-    .map(|(merged_ser_anal, analyzed_data)| {
-        let cape_parts = merged_ser_anal.filter_map(CapePartition::analyze_cape_partitions);
-        (analyzed_data, cape_parts)
-    })
-    .for_each(|(analyzed_data, cape_parts)| {
-        gp_save(prefix, analyzed_data, cape_parts, climo.as_mut()).unwrap_or(())
-    });
+    .map(|ens_ser_anal| ens_ser_anal.filter_map_inner(AnalyzedData::analyze))
+    .for_each(|analyzed_data| gp_save(prefix, analyzed_data, climo.as_mut()).unwrap_or(()));
 
     Ok(())
 }
@@ -130,15 +106,9 @@ fn launch_gnuplot(output_prefix: &str) -> Result<ChildStdin, Box<dyn Error>> {
 fn gp_plot_mrg(
     gp: &mut ChildStdin,
     mg: &MergedSeries<AnalyzedData>,
-    cape_parts: &MergedSeries<Vec<CapePartition>>,
-    climo: Option<&mut ClimoQueryInterface>,
+    mut climo: Option<&mut ClimoQueryInterface>,
 ) -> Result<(), Box<dyn Error>> {
     let MergedSeries::<AnalyzedData> { meta: meta_mg, .. } = &mg;
-    let MergedSeries::<Vec<CapePartition>> {
-        meta: meta_cape, ..
-    } = &cape_parts;
-
-    assert_eq!(meta_cape, meta_mg);
 
     // Set variables for the gnuplot script to use for ranges, etc
     writeln!(gp, "num_hours={}", (meta_mg.end - meta_mg.now).num_hours())?;
@@ -166,14 +136,19 @@ fn gp_plot_mrg(
     write_merged_data(mg, gp)?;
     writeln!(gp, "EOD")?;
 
-    // Write out the merged time series data for the heat map
-    writeln!(gp, "$wet_dry_data << EOD")?;
-    write_merged_heat_map_data(cape_parts, gp)?;
-    writeln!(gp, "EOD")?;
-
     // Try to get the climate data for the HDW and add that to the data
     writeln!(gp, "$hdw_climo << EOD")?;
-    write_hdw_climo(meta_mg, gp, climo)?;
+    write_climo(&meta_mg, ClimoElement::HDW, gp, &mut climo)?;
+    writeln!(gp, "EOD")?;
+
+    // Try to get the climate data for the BlowUpDt and add that to the data
+    writeln!(gp, "$blow_up_dt_climo << EOD")?;
+    write_climo(&meta_mg, ClimoElement::BlowUpDt, gp, &mut climo)?;
+    writeln!(gp, "EOD")?;
+
+    // Try to get the climate data for the BlowUpHeight and add that to the data
+    writeln!(gp, "$blow_up_height_climo << EOD")?;
+    write_climo(&meta_mg, ClimoElement::BlowUpHeight, gp, &mut climo)?;
     writeln!(gp, "EOD")?;
 
     // Draw the graph
@@ -222,13 +197,9 @@ fn gp_plot_ens(
 fn gp_save(
     prefix: &str,
     ens: EnsembleSeries<AnalyzedData>,
-    mg: MergedSeries<Vec<CapePartition>>,
-    climo: Option<&mut ClimoQueryInterface>,
+    mut climo: Option<&mut ClimoQueryInterface>,
 ) -> Result<(), Box<dyn Error>> {
     let EnsembleSeries::<AnalyzedData> { meta, .. } = &ens;
-    let MergedSeries::<Vec<CapePartition>> { meta: meta_mg, .. } = &mg;
-
-    assert_eq!(meta, meta_mg);
 
     // Build the file names to save the data to
     let fname_ens: PathBuf = PathBuf::from(&format!(
@@ -245,13 +216,6 @@ fn gp_save(
         meta.model.to_uppercase()
     ));
     let f_mrg = &mut File::create(&fname_mrg)?;
-    let fname_hm: PathBuf = PathBuf::from(&format!(
-        "{}/{}_{}_hm.dat",
-        prefix,
-        meta.site.id,
-        meta.model.to_uppercase()
-    ));
-    let f_hm = &mut File::create(&fname_hm)?;
 
     let fname_cli: PathBuf = PathBuf::from(&format!(
         "{}/{}_{}_cli.dat",
@@ -268,9 +232,7 @@ fn gp_save(
 
     write_merged_data(&merged, f_mrg)?;
 
-    write_merged_heat_map_data(&mg, f_hm)?;
-
-    write_hdw_climo(&merged.meta, f_cli, climo)?;
+    write_climo(&merged.meta, ClimoElement::HDW, f_cli, &mut climo)?;
 
     Ok(())
 }
@@ -283,9 +245,9 @@ fn write_ensemble_data<W: Write>(
     let EnsembleSeries { meta, data } = ens;
 
     // Write some comments about the meta data
-    write_meta_data_header(meta, dest)?;
+    write_meta_data_header(&meta, dest)?;
     // Write a header row
-    writeln!(dest, "valid_time lead_time e0 de hdw")?;
+    writeln!(dest, "valid_time lead_time blow_up_dt blow_up_height hdw")?;
     // Write out ensemble members/model runs in block format
     for (init_time, time_series) in data.iter() {
         writeln!(dest, "# init_time: {}", init_time.format(GP_DATE_FORMAT))?;
@@ -293,9 +255,8 @@ fn write_ensemble_data<W: Write>(
             valid_time,
             lead_time,
             hdw,
-            e0,
-            de,
-            ..
+            blow_up_dt,
+            blow_up_height,
         } in time_series.as_ref().iter()
         {
             writeln!(
@@ -303,8 +264,8 @@ fn write_ensemble_data<W: Write>(
                 "{} {} {} {} {}",
                 valid_time.format(GP_DATE_FORMAT),
                 lead_time,
-                e0.unpack(),
-                de.unpack(),
+                blow_up_dt.unpack(),
+                blow_up_height.unpack(),
                 hdw
             )?;
         }
@@ -323,29 +284,26 @@ fn write_merged_data<W: Write>(
     let MergedSeries { meta, data } = mrg;
 
     // Write some comments about the meta data
-    write_meta_data_header(meta, dest)?;
+    write_meta_data_header(&meta, dest)?;
     // Write a header row
-    writeln!(dest, "valid_time lead_time dt0 e0 de hdw")?;
+    writeln!(dest, "valid_time lead_time blow_up_dt blow_up_height hdw")?;
     // Write out ensemble members/model runs in block format
 
     for AnalyzedData {
         valid_time,
         lead_time,
         hdw,
-        dt0,
-        e0,
-        de,
-        ..
+        blow_up_dt,
+        blow_up_height,
     } in data.as_ref().iter()
     {
         writeln!(
             dest,
-            "{} {} {} {} {} {}",
+            "{} {} {} {} {}",
             valid_time.format(GP_DATE_FORMAT),
             lead_time,
-            dt0.unpack(),
-            e0.unpack(),
-            de.unpack(),
+            blow_up_dt.unpack(),
+            blow_up_height.unpack(),
             hdw
         )?;
     }
@@ -353,46 +311,12 @@ fn write_merged_data<W: Write>(
     Ok(())
 }
 
-/// Write out the merged partiton data to a writer.
-fn write_merged_heat_map_data<W: Write>(
-    cape_parts: &MergedSeries<Vec<CapePartition>>,
-    dest: &mut W,
-) -> Result<(), Box<dyn Error>> {
-    let MergedSeries { meta, data } = cape_parts;
-
-    // Write some comments about the meta data
-    write_meta_data_header(meta, dest)?;
-    // Write a header row
-    writeln!(dest, "valid_time dt dry_cape wet_cape")?;
-
-    // Write out the data in x y z1 z2....
-    for cp in data.as_ref().iter() {
-        for CapePartition {
-            valid_time,
-            dt,
-            dry,
-            wet,
-        } in cp.iter()
-        {
-            writeln!(
-                dest,
-                "{} {} {} {}",
-                valid_time.format(GP_DATE_FORMAT),
-                dt.unpack(),
-                dry.unpack(),
-                wet.unpack()
-            )?
-        }
-        writeln!(dest)?;
-    }
-    Ok(())
-}
-
 /// Write out the climate data for the HDW
-fn write_hdw_climo<W: Write>(
+fn write_climo<W: Write>(
     meta: &MetaData,
+    element: ClimoElement,
     dest: &mut W,
-    climo: Option<&mut ClimoQueryInterface>,
+    climo: &mut Option<&mut ClimoQueryInterface>,
 ) -> Result<(), Box<dyn Error>> {
     write_meta_data_header(meta, dest)?;
 
@@ -409,9 +333,9 @@ fn write_hdw_climo<W: Write>(
         "valid_time min 10th 20th 30th 40th median 60th 70th 80th 90th max"
     )?;
 
-    if let Some(hourly_deciles) = climo.and_then(|climo_iface| {
+    if let Some(hourly_deciles) = climo.as_mut().and_then(|climo_iface| {
         climo_iface
-            .hourly_deciles(site, model, ClimoElement::HDW, *start, *end)
+            .hourly_deciles(site, model, element, *start, *end)
             .ok()
     }) {
         for (vt, deciles) in izip!(
@@ -459,5 +383,3 @@ fn write_meta_data_header<W: Write>(meta: &MetaData, dest: &mut W) -> Result<(),
     )?;
     Ok(())
 }
-
-// TODO: make a function to plot the de/e0 ratio vs hdw

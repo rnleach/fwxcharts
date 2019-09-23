@@ -1,18 +1,16 @@
 use crate::timeseries::{ModelTimes, ValidTime};
 use chrono::{Duration, NaiveDateTime};
 
-use metfor::{Celsius, CelsiusDiff, JpKg};
-use sounding_analysis::{convective_parcel_initiation_energetics, hot_dry_windy, Analysis};
+use metfor::{CelsiusDiff, Meters};
+use sounding_analysis::{experimental::fire::blow_up, hot_dry_windy, Sounding};
 
 #[derive(Debug)]
 pub struct AnalyzedData {
     pub valid_time: NaiveDateTime,
     pub lead_time: i32,
     pub hdw: f64,
-    pub t0: Celsius,
-    pub dt0: CelsiusDiff,
-    pub e0: JpKg,
-    pub de: JpKg,
+    pub blow_up_dt: CelsiusDiff,
+    pub blow_up_height: Meters,
 }
 
 impl ValidTime for AnalyzedData {
@@ -29,27 +27,34 @@ impl ModelTimes for AnalyzedData {
 
 impl AnalyzedData {
     /// Convert a `sounding_analysis::Analysis` into an `AnalyzedData` struct.
-    pub fn analyze(anal: &Analysis) -> Option<Self> {
-        let snd = anal.sounding();
+    pub fn analyze(snd: &Sounding) -> Option<Self> {
+        const MIN_BLOWUP: Meters = Meters(2000.0);
+        const DEFAULT_BLOWUP: (CelsiusDiff, Meters) =
+            (CelsiusDiff(std::f64::NAN), Meters(std::f64::NAN));
+
         let valid_time = snd.valid_time()?;
         let lead_time = snd.lead_time().into_option()?;
 
         let hdw = hot_dry_windy(snd).unwrap_or(std::f64::NAN);
-        let (t0, dt0, e0, de) = convective_parcel_initiation_energetics(snd).unwrap_or((
-            Celsius(std::f64::NAN),
-            CelsiusDiff(std::f64::NAN),
-            JpKg(std::f64::NAN),
-            JpKg(std::f64::NAN),
-        ));
+        let (delta_t, height) = blow_up(snd)
+            // Extract the values I need to plot
+            .map(|bua| (bua.delta_t, bua.height))
+            // Plot a blank space (so use NAN marker) where there isn't a minimal blow up
+            .map(|(dt, hgt)| {
+                if hgt > MIN_BLOWUP {
+                    (dt, hgt)
+                } else {
+                    DEFAULT_BLOWUP
+                }
+            })
+            .unwrap_or(DEFAULT_BLOWUP);
 
         Some(AnalyzedData {
             valid_time,
             lead_time,
             hdw,
-            t0,
-            dt0,
-            e0,
-            de,
+            blow_up_dt: delta_t,
+            blow_up_height: height,
         })
     }
 }

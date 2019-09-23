@@ -11,8 +11,9 @@
 #
 # heredocs:
 #   $data
-#   $wet_dry_data
 #   $hdw_climo
+#   $blow_up_dt_climo
+#   $blow_up_height_climo
 
 #
 # Multiplot of some experimental fire weather paramters.
@@ -295,13 +296,14 @@ set palette defined (\
 set tmargin screen 0.95
 set rmargin screen 0.85
 set lmargin screen 0.12
-set bmargin screen 0.68
+set bmargin screen 0.72
 set xtics scale 0
 set format x ''
-set ylabel "Hot Dry Windy Index"
+set ylabel "Hot Dry\nWindy Index"
 set ytics 100,100,700
 set grid
 set cbrange [0:100]
+set cbtics 5,20
 set cblabel "Percentile [%]"
 set colorbox vertical
 set style fill solid 0.55 noborder
@@ -320,57 +322,70 @@ plot [start_time:end_time][0:700] \
 	""         u 1:2     w l            lc rgb "gray"         notitle, \
 	""         u 1:12    w l            lc rgb "gray"         notitle, \
 	""         u 1:7     w l            lc rgb "black"   dt 2 t "Median", \
-	$data      u 1:6     w l            lc rgb "black"        t "HDW"
+	$data      u 1:5     w l            lc rgb "black"        t "HDW"
 #
-# Plot the middle row which is the energies
+# Plot the middle row which is the blow up delta_t
 #
-set tmargin screen 0.68
+set tmargin screen 0.72
 set rmargin screen 0.85
 set lmargin screen 0.12
-set bmargin screen 0.42
+set bmargin screen 0.49
 set xtics scale 0
-set ylabel "CAPE [J/Kg]"
-set ytics 500,1000,2500
-set grid
+set ylabel "Blow Up\nΔT [°C]"
+set ytics 2,2,18
+set palette negative
 set arrow from now_time, graph 0 to now_time, graph 1 nohead lc rgb "black"
-plot [start_time:end_time][0:3000] $data u 1:4         w filledcu y1=0 lc rgb "#ff4500" notitle,\
-			                       $data u 1:4:($4+$5) w filledcu      lc rgb "#2222ff" notitle,\
-                                   $data u 1:4       w l lc rgb "black" dt 1 t "E₀", \
-		                           $data u 1:($4+$5) w l lc rgb "black" dt 2 t "E₀ + ΔE"
+plot [start_time:end_time][0:20] \
+	$blow_up_dt_climo u 1:11:12 w filledcurves lc palette cb 95      notitle, \
+	""                u 1:10:11 w filledcurves lc palette cb 85      notitle, \
+	""                u 1:9:10  w filledcurves lc palette cb 75      notitle, \
+	""                u 1:8:9   w filledcurves lc palette cb 65      notitle, \
+	""                u 1:7:8   w filledcurves lc palette cb 55      notitle, \
+	""                u 1:6:7   w filledcurves lc palette cb 45      notitle, \
+	""                u 1:5:6   w filledcurves lc palette cb 35      notitle, \
+	""                u 1:4:5   w filledcurves lc palette cb 25      notitle, \
+	""                u 1:3:4   w filledcurves lc palette cb 25      notitle, \
+	""                u 1:2:3   w filledcurves lc palette cb  5      notitle, \
+	""                u 1:2     w l            lc rgb "gray"         notitle, \
+	""                u 1:12    w l            lc rgb "gray"         notitle, \
+	""                u 1:7     w l            lc rgb "black"   dt 2 t "Median", \
+	$data u 1:3 w l lc rgb "black" dt 1 notitle
+
 #
-# Make a heat map
+# Make the blow up height chart
 #
-set tmargin screen 0.42
+set tmargin screen 0.49
 set rmargin screen 0.85
 set lmargin screen 0.12
-set bmargin screen 0.15
+set bmargin screen 0.26
 
 # Set up x-axis
 set xtics nomirror scale 1
 set format x "%m/%d %H"
 set format y "%4.0f"
 set xtics rotate by -45 offset 0, screen -0.035
-set ytics 0,2,20
 set xlabel "Date and hour [UTC]\n" font ",14" offset 0, screen -0.05
 # Set up y-axis
-set ylabel "Temperature Deficit [°C]"
-set view map
-# Set up color map and color bar 
-set palette defined (\
-   0 '#ffffff',\
- 250 '#ffffff',\
- 250 '#ffff00',\
- 500 '#ff4500',\
- 750 '#ff0000',\
-1500 '#00ffff',\
-2000 '#ff00ff',\
-3000 '#000000')
-set cbrange [0:3000]
-set cblabel "CAPE [J/Kg]"
-set colorbox vertical
-splot [start_time:end_time][0:15] \
-		  $wet_dry_data using 1:2:($3+$4) w pm3d                      notitle, \
-		  $data         using 1:3:(0)     w lines lc rgb "black" dt 2 t "T₀"
+set ylabel "Blow up\nHeight [km]"
+set ytics 0,2
+set palette positive
+set arrow from now_time, graph 0 to now_time, graph 1 nohead lc rgb "black"
+plot [start_time:end_time][0:10 < *] \
+	$blow_up_height_climo u 1:($11/1000):($12/1000) w filledcurves lc palette cb 95      notitle, \
+	""                    u 1:($10/1000):($11/1000) w filledcurves lc palette cb 85      notitle, \
+	""                    u 1:($9/1000):($10/1000)  w filledcurves lc palette cb 75      notitle, \
+	""                    u 1:($8/1000):($9/1000)   w filledcurves lc palette cb 65      notitle, \
+	""                    u 1:($7/1000):($8/1000)   w filledcurves lc palette cb 55      notitle, \
+	""                    u 1:($6/1000):($7/1000)   w filledcurves lc palette cb 45      notitle, \
+	""                    u 1:($5/1000):($6/1000)   w filledcurves lc palette cb 35      notitle, \
+	""                    u 1:($4/1000):($5/1000)   w filledcurves lc palette cb 25      notitle, \
+	""                    u 1:($3/1000):($4/1000)   w filledcurves lc palette cb 25      notitle, \
+	""                    u 1:($2/1000):($3/1000)   w filledcurves lc palette cb  5      notitle, \
+	""                    u 1:($2/1000)             w l            lc rgb "gray"         notitle, \
+	""                    u 1:($12/1000)            w l            lc rgb "gray"         notitle, \
+	""                    u 1:($7/1000)             w l            lc rgb "black"   dt 2 t "Median", \
+	$data u 1:($4/1000) w l lc rgb "black" dt 1 notitle
+
 #
 # Clean up
 #

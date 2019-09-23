@@ -19,7 +19,7 @@ pub struct FileData {
     pub model: String,
     pub start: NaiveDateTime,
     pub end: NaiveDateTime,
-    pub files: Vec<String>,
+    pub files: Vec<std::path::PathBuf>,
 }
 
 /// Load the files from disk for plotting.
@@ -53,7 +53,7 @@ pub fn load_from_files<'a>(
                     .map_err(BufkitDataErr::from)?
                     .into_iter()
                     .nth(0)
-                    .and_then(|anal| anal.sounding().valid_time())
+                    .and_then(|(snd, _)| snd.valid_time())
                     .ok_or(BufkitDataErr::NotEnoughData)?;
 
                 Ok((init_time, string))

@@ -4,25 +4,21 @@
 use crate::timeseries::{ModelTimes, TimeSeries, ValidTime};
 use chrono::{Duration, NaiveDateTime};
 
-use sounding_analysis::Analysis;
+use sounding_analysis::Sounding;
 use sounding_bufkit::BufkitData;
 
 mod analyzed_data;
 pub use analyzed_data::AnalyzedData;
 
-mod cape_partition;
-pub use cape_partition::CapePartition;
-
-impl ValidTime for Analysis {
+impl ValidTime for Sounding {
     fn valid_time(&self) -> Option<NaiveDateTime> {
-        self.sounding().valid_time()
+        self.valid_time()
     }
 }
-impl ModelTimes for Analysis {
+
+impl ModelTimes for Sounding {
     fn lead_time(&self) -> Option<Duration> {
-        self.sounding()
-            .lead_time()
-            .map(|lt| Duration::hours(i64::from(lt)))
+        self.lead_time().map(|lt| Duration::hours(i64::from(lt)))
     }
 }
 
@@ -38,19 +34,20 @@ pub fn parse_sounding(
     str_data: &str,
     start: NaiveDateTime,
     end: NaiveDateTime,
-) -> Option<TimeSeries<Analysis>> {
+) -> Option<TimeSeries<Sounding>> {
     BufkitData::init(&str_data, "")
         .ok()
         .map(|data| {
             data.into_iter()
-                .filter(|anal| {
-                    if let Some(vtime) = anal.sounding().valid_time() {
+                .filter(|(snd, _)| {
+                    if let Some(vtime) = snd.valid_time() {
                         vtime >= start && vtime <= end
                     } else {
                         false
                     }
                 })
-                .collect::<Vec<Analysis>>()
+                .map(|(snd, _)| snd)
+                .collect::<Vec<Sounding>>()
         })
         .and_then(|vec_anals| {
             if vec_anals.is_empty() {
