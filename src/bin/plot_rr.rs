@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .join("2017 Fire")
         .join("Bufkit");
 
-    let file_data = [
+    let file_data = vec![
         FileData {
             site: Site {
                 id: "KRR1".to_owned(),
@@ -181,55 +181,32 @@ fn main() -> Result<(), Box<dyn Error>> {
     ];
 
     let file_strings = file_data
-        .iter()
-        .map(|fd| load_from_files(fd))
-        .inspect(|res| match res {
-            Ok(_) => {}
-            Err(e) => println!("{:?}", e),
-        })
-        .filter_map(|res| res.ok())
-        .flat_map(|iter| iter);
+        .into_iter()
+        .map(load_from_files)
+        .flat_map(|chan| chan.into_iter());
 
-    let string_data = load_for_site_and_date_and_time(&arch, "kmso", Model::GFS, now, DAYS_BACK)?
-        .chain(load_for_site_and_date_and_time(
-            &arch,
-            "kmso",
-            Model::NAM,
-            now,
-            DAYS_BACK,
-        )?)
-        .chain(load_for_site_and_date_and_time(
-            &arch,
-            "kmso",
-            Model::NAM4KM,
-            now,
-            DAYS_BACK,
-        )?)
-        .chain(load_for_site_and_date_and_time(
-            &arch,
-            "c18",
-            Model::GFS,
-            now,
-            DAYS_BACK,
-        )?)
-        .chain(load_for_site_and_date_and_time(
-            &arch,
-            "c18",
-            Model::NAM,
-            now,
-            DAYS_BACK,
-        )?)
-        .chain(load_for_site_and_date_and_time(
-            &arch,
-            "c18",
-            Model::NAM4KM,
-            now,
-            DAYS_BACK,
-        )?)
-        .chain(file_strings)
-        .filter_map(Result::ok);
+    let string_data = load_for_site_and_date_and_time(&arch, "kmso", Model::GFS, now, DAYS_BACK)
+        .into_iter()
+        .chain(
+            load_for_site_and_date_and_time(&arch, "kmso", Model::NAM, now, DAYS_BACK).into_iter(),
+        )
+        .chain(
+            load_for_site_and_date_and_time(&arch, "kmso", Model::NAM4KM, now, DAYS_BACK)
+                .into_iter(),
+        )
+        .chain(
+            load_for_site_and_date_and_time(&arch, "c18", Model::GFS, now, DAYS_BACK).into_iter(),
+        )
+        .chain(
+            load_for_site_and_date_and_time(&arch, "c18", Model::NAM, now, DAYS_BACK).into_iter(),
+        )
+        .chain(
+            load_for_site_and_date_and_time(&arch, "c18", Model::NAM4KM, now, DAYS_BACK)
+                .into_iter(),
+        )
+        .chain(file_strings);
 
-    plot_all(string_data, "images", Some(climo))?;
+    plot_all(string_data, "images", Some(climo));
 
     Ok(())
 }

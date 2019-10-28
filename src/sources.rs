@@ -4,11 +4,15 @@
 //! These functions produce iterators suitable for the plot functions in this library.
 //!
 
-use crate::timeseries::{EnsembleList, MetaData};
+use crate::{
+    messages::{InnerMessage, Message},
+    timeseries::{EnsembleList, MetaData},
+};
 use bufkit_data::{Archive, BufkitDataErr, Model, Site};
 use chrono::{Duration, NaiveDateTime, Utc};
+use crossbeam::crossbeam_channel::{unbounded, Receiver};
 use itertools::iproduct;
-use std::{fs::File, io::Read, iter::once};
+use std::{fs::File, io::Read, thread::spawn};
 use strum::IntoEnumIterator;
 
 pub type StringData = EnsembleList<String>;
@@ -23,51 +27,59 @@ pub struct FileData {
 }
 
 /// Load the files from disk for plotting.
-pub fn load_from_files<'a>(
-    file_data: &'a FileData,
-) -> Result<
-    impl Iterator<Item = Result<StringData, bufkit_data::BufkitDataErr>> + 'a,
-    bufkit_data::BufkitDataErr,
-> {
-    let meta = MetaData {
-        site: file_data.site.clone(),
-        model: file_data.model.clone(),
-        start: file_data.start,
-        now: file_data.start,
-        end: file_data.end,
-    };
+pub fn load_from_files(file_data: FileData) -> Receiver<Message> {
+    let (sender, receiver) = unbounded();
 
-    let strings: Result<Vec<(NaiveDateTime, String)>, _> = file_data
-        .files
-        .iter()
-        .map(|path| {
-            let mut f = File::open(path)?;
-            let mut contents = String::new();
-            f.read_to_string(&mut contents)?;
-            Ok(contents)
-        })
-        .map(|res: Result<String, std::io::Error>| res.map_err(BufkitDataErr::from))
-        .map(|res| {
-            res.and_then(|string| {
-                let init_time: NaiveDateTime = sounding_bufkit::BufkitData::init(&string, "")
-                    .map_err(BufkitDataErr::from)?
-                    .into_iter()
-                    .nth(0)
-                    .and_then(|(snd, _)| snd.valid_time())
-                    .ok_or(BufkitDataErr::NotEnoughData)?;
+    spawn(move || {
+        let meta = MetaData {
+            site: file_data.site.clone(),
+            model: file_data.model.clone(),
+            start: file_data.start,
+            now: file_data.start,
+            end: file_data.end,
+        };
 
-                Ok((init_time, string))
+        let strings: Result<Vec<(NaiveDateTime, String)>, _> = file_data
+            .files
+            .iter()
+            .map(|path| {
+                let mut f = File::open(path)?;
+                let mut contents = String::new();
+                f.read_to_string(&mut contents)?;
+                Ok(contents)
             })
-        })
-        .collect();
-    let strings = strings?;
+            .map(|res: Result<String, std::io::Error>| res.map_err(BufkitDataErr::from))
+            .map(|res| {
+                res.and_then(|string| {
+                    let init_time: NaiveDateTime = sounding_bufkit::BufkitData::init(&string, "")
+                        .map_err(BufkitDataErr::from)?
+                        .into_iter()
+                        .nth(0)
+                        .and_then(|(snd, _)| snd.valid_time())
+                        .ok_or(BufkitDataErr::NotEnoughData)?;
 
-    let string_data = StringData {
-        meta,
-        data: strings,
-    };
+                    Ok((init_time, string))
+                })
+            })
+            .collect();
 
-    Ok(once(Ok(string_data)))
+        match strings {
+            Ok(strings) => {
+                let msg = InnerMessage::StringData(StringData {
+                    meta,
+                    data: strings,
+                });
+
+                sender.send(Message::from(msg)).unwrap();
+            }
+            Err(err) => {
+                let msg = InnerMessage::BufkitDataError(err);
+                sender.send(Message::from(msg)).unwrap();
+            }
+        }
+    });
+
+    receiver
 }
 
 /// Load model initialization times for the given site and model assuming the current time is
@@ -78,37 +90,64 @@ pub fn load_for_site_and_date_and_time<'a>(
     model: Model,
     time: NaiveDateTime,
     days_back: i64,
-) -> Result<
-    impl Iterator<Item = Result<StringData, bufkit_data::BufkitDataErr>> + 'a,
-    bufkit_data::BufkitDataErr,
-> {
-    let start = time - Duration::days(days_back);
+) -> Receiver<Message> {
+    let root = arch.root().to_path_buf();
+    let site = site.to_owned();
+    let (sender, receiver) = unbounded();
 
-    Ok(
-        once((arch.site_info(site)?, model)).map(move |(site, model)| {
-            let end = time + Duration::days(num_days(model));
-            arch.init_times_for_soundings_valid_between(start, end, &site.id, model)
-                .map(|init_times| {
-                    let data = init_times
-                        .into_iter()
-                        .filter_map(|init_time| {
-                            load_string_from_archive(arch, &site.id, init_time, model)
-                                .map(|str_data| (init_time, str_data))
-                        })
-                        .collect::<Vec<_>>();
-                    let meta = MetaData {
-                        site,
-                        model: model.as_static_str().to_owned(),
-                        start,
-                        now: time,
-                        end,
-                    };
+    spawn(move || {
+        let arch = match Archive::connect(root) {
+            Ok(arch) => arch,
+            Err(err) => {
+                sender
+                    .send(Message::from(InnerMessage::BufkitDataError(err)))
+                    .unwrap();
+                return;
+            }
+        };
 
-                    StringData { meta, data }
-                })
-                .map_err(Into::into)
-        }),
-    )
+        let start = time - Duration::days(days_back);
+        let end = time + Duration::days(num_days(model));
+        let site_info = match arch.site_info(&site) {
+            Ok(site_info) => site_info,
+            Err(err) => {
+                sender
+                    .send(Message::from(InnerMessage::BufkitDataError(err)))
+                    .unwrap();
+                return;
+            }
+        };
+
+        match arch.init_times_for_soundings_valid_between(start, end, &site_info.id, model) {
+            Ok(init_times) => {
+                let data = init_times
+                    .into_iter()
+                    .filter_map(|init_time| {
+                        load_string_from_archive(&arch, &site_info.id, init_time, model)
+                            .map(|str_data| (init_time, str_data))
+                    })
+                    .collect::<Vec<_>>();
+                let meta = MetaData {
+                    site: site_info,
+                    model: model.as_static_str().to_owned(),
+                    start,
+                    now: time,
+                    end,
+                };
+
+                let msg = InnerMessage::StringData(StringData { meta, data });
+
+                sender.send(Message::from(msg)).unwrap();
+            }
+            Err(err) => {
+                sender
+                    .send(Message::from(InnerMessage::BufkitDataError(err)))
+                    .unwrap();
+            }
+        }
+    });
+
+    receiver
 }
 
 /// Load all the model initialization times valid before now and going days back.
@@ -117,10 +156,7 @@ pub fn load_site<'a>(
     site: &str,
     model: Model,
     days_back: i64,
-) -> Result<
-    impl Iterator<Item = Result<StringData, bufkit_data::BufkitDataErr>> + 'a,
-    bufkit_data::BufkitDataErr,
-> {
+) -> Receiver<Message> {
     let now = Utc::now().naive_utc();
 
     load_for_site_and_date_and_time(arch, site, model, now, days_back)
@@ -128,25 +164,42 @@ pub fn load_site<'a>(
 
 /// Load all the model initialization itmes for all sites and models in the provided archive valid
 /// before now and going days back.
-pub fn load_all_sites_and_models<'a>(
-    arch: &'a Archive,
-    days_back: i64,
-) -> Result<
-    impl Iterator<Item = Result<StringData, bufkit_data::BufkitDataErr>> + 'a,
-    bufkit_data::BufkitDataErr,
-> {
-    let now = Utc::now().naive_utc();
-    let start = now - Duration::days(days_back);
+pub fn load_all_sites_and_models(arch: &Archive, days_back: i64) -> Receiver<Message> {
+    let root = arch.root().to_path_buf();
+    let (sender, receiver) = unbounded();
 
-    Ok(
-        iproduct!(arch.sites()?.into_iter(), Model::iter()).map(move |(site, model)| {
+    spawn(move || {
+        let arch = match Archive::connect(root) {
+            Ok(arch) => arch,
+            Err(err) => {
+                sender
+                    .send(Message::from(InnerMessage::BufkitDataError(err)))
+                    .unwrap();
+                return;
+            }
+        };
+
+        let sites = match arch.sites() {
+            Ok(sites) => sites.into_iter(),
+            Err(err) => {
+                sender
+                    .send(Message::from(InnerMessage::BufkitDataError(err)))
+                    .unwrap();
+                return;
+            }
+        };
+
+        let now = Utc::now().naive_utc();
+        let start = now - Duration::days(days_back);
+
+        iproduct!(sites, Model::iter()).for_each(move |(site, model)| {
             let end = now + Duration::days(num_days(model));
-            arch.init_times_for_soundings_valid_between(start, end, &site.id, model)
-                .map(|init_times| {
+            match arch.init_times_for_soundings_valid_between(start, end, &site.id, model) {
+                Ok(init_times) => {
                     let data = init_times
                         .into_iter()
                         .filter_map(|init_time| {
-                            load_string_from_archive(arch, &site.id, init_time, model)
+                            load_string_from_archive(&arch, &site.id, init_time, model)
                                 .map(|str_data| (init_time, str_data))
                         })
                         .collect::<Vec<_>>();
@@ -158,11 +211,19 @@ pub fn load_all_sites_and_models<'a>(
                         end,
                     };
 
-                    StringData { meta, data }
-                })
-                .map_err(Into::into)
-        }),
-    )
+                    let msg = InnerMessage::StringData(StringData { meta, data });
+                    sender.send(Message::from(msg)).unwrap();
+                }
+                Err(err) => {
+                    sender
+                        .send(Message::from(InnerMessage::BufkitDataError(err)))
+                        .unwrap();
+                }
+            }
+        });
+    });
+
+    receiver
 }
 
 /// The number of days of data available for each model.

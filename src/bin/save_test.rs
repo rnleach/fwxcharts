@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let climo = ClimoDB::connect_or_create(&archive)?;
     let climo = ClimoQueryInterface::initialize(&climo);
 
-    let loaded_files = load_site(&arch, "KTUS", Model::GFS, DAYS_BACK)?.filter_map(Result::ok);
+    let loaded_files = load_site(&arch, "KTUS", Model::GFS, DAYS_BACK).into_iter();
 
     save_all(loaded_files, "text", Some(climo))?;
 

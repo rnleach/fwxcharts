@@ -15,9 +15,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let climo = ClimoDB::connect_or_create(&archive)?;
     let climo = ClimoQueryInterface::initialize(&climo);
 
-    let string_data = load_all_sites_and_models(&arch, DAYS_BACK)?.filter_map(Result::ok);
+    let string_data = load_all_sites_and_models(&arch, DAYS_BACK).into_iter();
 
-    plot_all(string_data, "images", Some(climo))?;
+    plot_all(string_data, "images", Some(climo));
 
     Ok(())
 }

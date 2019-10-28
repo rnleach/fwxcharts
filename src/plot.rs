@@ -1,12 +1,14 @@
 //! Functions used for plotting data and producing output.
 use crate::{
-    sources::StringData,
+    messages::{InnerMessage, Message},
     timeseries::{EnsembleSeries, MergedSeries, MetaData},
     types::{parse_sounding, AnalyzedData},
 };
 use bufcli::{ClimoElement, ClimoQueryInterface};
+use crossbeam::{crossbeam_channel::unbounded, scope};
 use itertools::izip;
 use metfor::Quantity;
+use rayon::iter::{IterBridge, ParallelBridge, ParallelIterator};
 use std::{
     error::Error,
     fs::File,
@@ -21,33 +23,46 @@ use std::{
 /// # Arguments
 /// iter - an iterator over ensembles of model runs, make the plot and save it for each ensemble.
 /// prefix - The path to the folder where you want the plots saved.
-pub fn plot_all(
-    iter: impl Iterator<Item = StringData>,
-    prefix: &str,
-    mut climo: Option<ClimoQueryInterface>,
-) -> Result<(), Box<dyn Error>> {
-    let gp_in = &mut launch_gnuplot(prefix)?;
+pub fn plot_all<I>(iter: I, prefix: &str, mut climo: Option<ClimoQueryInterface>)
+where
+    I: Iterator<Item = Message> + ParallelBridge + Send,
+    IterBridge<I>: ParallelIterator<Item = Message> + Send,
+{
+    let (plot_sender, plot_receiver) = unbounded();
 
-    iter.filter_map(|ens_list_strings| {
-        let start = ens_list_strings.meta.start;
-        let end = ens_list_strings.meta.end;
-        let ens_ser_anal =
-            ens_list_strings.filter_map(|str_data| parse_sounding(str_data, start, end));
+    scope(|s| {
+        s.spawn(move |_| {
+            iter.par_bridge()
+                .filter_map(|msg| match msg.payload() {
+                    InnerMessage::StringData(ens_list_strings) => {
+                        let start = ens_list_strings.meta.start;
+                        let end = ens_list_strings.meta.end;
+                        let ens_ser_anal = ens_list_strings
+                            .filter_map(|str_data| parse_sounding(str_data, start, end));
 
-        if ens_ser_anal.is_empty() {
-            None
-        } else {
-            Some(ens_ser_anal)
+                        if ens_ser_anal.is_empty() {
+                            None
+                        } else {
+                            Some(ens_ser_anal)
+                        }
+                    }
+                    InnerMessage::BufkitDataError(err) => {
+                        println!("Error: {:?}", err);
+                        None
+                    }
+                })
+                .map(|ens_ser_anal| ens_ser_anal.filter_map_inner(AnalyzedData::analyze))
+                .for_each(|analyzed_data| plot_sender.send(analyzed_data).unwrap());
+        });
+
+        let gp_in = &mut launch_gnuplot(prefix).unwrap();
+        for analyzed_data in plot_receiver {
+            gp_plot_ens(gp_in, &analyzed_data).unwrap_or_else(|err| println!("{:?}", err));
+            let merged = analyzed_data.merge();
+            gp_plot_mrg(gp_in, &merged, climo.as_mut()).unwrap_or_else(|err| println!("{:?}", err));
         }
     })
-    .map(|ens_ser_anal| ens_ser_anal.filter_map_inner(AnalyzedData::analyze))
-    .for_each(|analyzed_data| {
-        gp_plot_ens(gp_in, &analyzed_data).unwrap_or_else(|err| println!("{:?}", err));
-        let merged = analyzed_data.merge();
-        gp_plot_mrg(gp_in, &merged, climo.as_mut()).unwrap_or_else(|err| println!("{:?}", err));
-    });
-
-    Ok(())
+    .unwrap();
 }
 
 /// Given an iterator over `StringData` loaded from Bufkit files, filter out any failed results
@@ -57,20 +72,28 @@ pub fn plot_all(
 /// iter - an iterator over ensembles of model runs, make the plot and save it for each ensemble.
 /// prefix - The path to the folder where you want the plots saved.
 pub fn save_all(
-    iter: impl Iterator<Item = StringData>,
+    iter: impl Iterator<Item = Message>,
     prefix: &str,
     mut climo: Option<ClimoQueryInterface>,
 ) -> Result<(), Box<dyn Error>> {
-    iter.filter_map(|ens_list_strings| {
-        let start = ens_list_strings.meta.start;
-        let end = ens_list_strings.meta.end;
-        let ens_ser_anal =
-            ens_list_strings.filter_map(|str_data| parse_sounding(str_data, start, end));
+    use InnerMessage::*;
 
-        if ens_ser_anal.is_empty() {
+    iter.filter_map(|msg| match msg.payload() {
+        StringData(ens_list_strings) => {
+            let start = ens_list_strings.meta.start;
+            let end = ens_list_strings.meta.end;
+            let ens_ser_anal =
+                ens_list_strings.filter_map(|str_data| parse_sounding(str_data, start, end));
+
+            if ens_ser_anal.is_empty() {
+                None
+            } else {
+                Some(ens_ser_anal)
+            }
+        }
+        BufkitDataError(err) => {
+            println!("Error: {:?}", err);
             None
-        } else {
-            Some(ens_ser_anal)
         }
     })
     .map(|ens_ser_anal| ens_ser_anal.filter_map_inner(AnalyzedData::analyze))

@@ -2,6 +2,7 @@
 // API
 //
 pub use crate::{
+    messages::Message,
     plot::{plot_all, save_all},
     sources::{
         load_all_sites_and_models, load_for_site_and_date_and_time, load_from_files, load_site,
@@ -12,6 +13,8 @@ pub use crate::{
 //
 // Internal implementation details.
 //
+/// Messages for carrying information between the loading and plotting functions.
+mod messages;
 /// Types and functions for plotting
 mod plot;
 /// Functions for loading data from an archive or files.
