@@ -9,7 +9,7 @@ use bufkit_data::{Archive, BufkitDataErr, Model, Site};
 use chrono::{Duration, NaiveDateTime, Utc};
 use itertools::iproduct;
 use std::{fs::File, io::Read, iter::once};
-use strum::{AsStaticRef, IntoEnumIterator};
+use strum::IntoEnumIterator;
 
 pub type StringData = EnsembleList<String>;
 
@@ -98,7 +98,7 @@ pub fn load_for_site_and_date_and_time<'a>(
                         .collect::<Vec<_>>();
                     let meta = MetaData {
                         site,
-                        model: model.as_static().to_owned(),
+                        model: model.as_static_str().to_owned(),
                         start,
                         now: time,
                         end,
@@ -152,7 +152,7 @@ pub fn load_all_sites_and_models<'a>(
                         .collect::<Vec<_>>();
                     let meta = MetaData {
                         site,
-                        model: model.as_static().to_owned(),
+                        model: model.as_static_str().to_owned(),
                         start,
                         now,
                         end,
