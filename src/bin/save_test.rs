@@ -13,7 +13,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let archive = home_dir.join("bufkit");
     let arch = Archive::connect(&archive)?;
     let climo = ClimoDB::connect_or_create(&archive)?;
-    let climo = ClimoQueryInterface::initialize(&climo);
+    let climo = ClimoQueryInterface::initialize(&climo)?;
 
     let loaded_files = load_site(&arch, "KTUS", Model::GFS, DAYS_BACK).into_iter();
 

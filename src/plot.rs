@@ -4,9 +4,8 @@ use crate::{
     timeseries::{EnsembleSeries, MergedSeries, MetaData},
     types::{parse_sounding, AnalyzedData},
 };
-use bufcli::{ClimoElement, ClimoQueryInterface};
+use bufcli::{ClimoElement, ClimoQueryInterface, Percentile};
 use crossbeam::{crossbeam_channel::unbounded, scope};
-use itertools::izip;
 use metfor::Quantity;
 use rayon::iter::{IterBridge, ParallelBridge, ParallelIterator};
 use std::{
@@ -361,25 +360,22 @@ fn write_climo<W: Write>(
             .hourly_deciles(site, model, element, *start, *end)
             .ok()
     }) {
-        for (vt, deciles) in izip!(
-            hourly_deciles.valid_times.into_iter(),
-            hourly_deciles.deciles.into_iter(),
-        ) {
+        for (vt, deciles) in hourly_deciles {
             writeln!(
                 dest,
                 "{} {} {} {} {} {} {} {} {} {} {} {}",
                 vt.format(GP_DATE_FORMAT),
-                deciles[0],
-                deciles[1],
-                deciles[2],
-                deciles[3],
-                deciles[4],
-                deciles[5],
-                deciles[6],
-                deciles[7],
-                deciles[8],
-                deciles[9],
-                deciles[10],
+                deciles.value_at_percentile(Percentile::from(0)),
+                deciles.value_at_percentile(Percentile::from(10)),
+                deciles.value_at_percentile(Percentile::from(20)),
+                deciles.value_at_percentile(Percentile::from(30)),
+                deciles.value_at_percentile(Percentile::from(40)),
+                deciles.value_at_percentile(Percentile::from(50)),
+                deciles.value_at_percentile(Percentile::from(60)),
+                deciles.value_at_percentile(Percentile::from(70)),
+                deciles.value_at_percentile(Percentile::from(80)),
+                deciles.value_at_percentile(Percentile::from(90)),
+                deciles.value_at_percentile(Percentile::from(100)),
             )?;
         }
     } else {

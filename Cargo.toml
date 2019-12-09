@@ -7,8 +7,8 @@ edition = "2018"
 publish = false
 
 [dependencies]
-bufcli = {git = "https://github.com/rnleach/bufcli", tag="v0.5.2"}
-bufkit-data="^0.10"
+bufcli = {git = "https://github.com/rnleach/bufcli", tag="v0.6.1"}
+bufkit-data="^0.10.1"
 chrono = "^0.4.2"
 crossbeam = "^0.7.2"
 directories = "^2.0"
@@ -18,3 +18,4 @@ rayon = "^1.2"
 sounding-analysis="^0.12.2"
 sounding-bufkit="^0.12"
 strum="^0.16.0"
+

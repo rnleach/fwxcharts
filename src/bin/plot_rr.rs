@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let archive = home_dir.join("bufkit");
     let arch = Archive::connect(&archive)?;
     let climo = ClimoDB::connect_or_create(&archive)?;
-    let climo = ClimoQueryInterface::initialize(&climo);
+    let climo = ClimoQueryInterface::initialize(&climo)?;
 
     let now = NaiveDate::from_ymd(2017, 9, 2).and_hms(12, 0, 0);
 
