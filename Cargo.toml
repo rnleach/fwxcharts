@@ -1,21 +1,21 @@
 [package]
 name = "graphs"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Ryan <rnleach@users.noreply.github.com>"]
 description="A place for me to prototype making graphs."
 edition = "2018"
 publish = false
 
 [dependencies]
-bufcli = {git = "https://github.com/rnleach/bufcli", tag="v0.6.1"}
-bufkit-data="^0.10.1"
+bufcli = {git = "https://github.com/rnleach/bufcli", tag="v0.7.0"}
+bufkit-data="^0.11.0"
 chrono = "^0.4.2"
 crossbeam = "^0.7.2"
 directories = "^2.0"
 itertools = "^0.9.0"
-metfor = "^0.7.0"
+metfor = "^0.7.4"
 rayon = "^1.2"
 sounding-analysis="^0.13"
 sounding-bufkit="^0.13"
-strum="^0.16.0"
+strum="^0.18.0"
 
