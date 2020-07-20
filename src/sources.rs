@@ -8,10 +8,9 @@ use crate::{
     messages::{InnerMessage, Message},
     timeseries::{EnsembleList, MetaData},
 };
-use bufkit_data::{Archive, BufkitDataErr, Model, Site};
+use bufkit_data::{Archive, BufkitDataErr, Model, SiteInfo};
 use chrono::{Duration, NaiveDateTime, Utc};
 use crossbeam::crossbeam_channel::{unbounded, Receiver};
-use itertools::iproduct;
 use std::{fs::File, io::Read, thread::spawn};
 use strum::IntoEnumIterator;
 
@@ -19,7 +18,7 @@ pub type StringData = EnsembleList<String>;
 
 /// Information needed for making a plot from files on disk.
 pub struct FileData {
-    pub site: Site,
+    pub site: SiteInfo,
     pub model: String,
     pub start: NaiveDateTime,
     pub end: NaiveDateTime,
@@ -96,7 +95,7 @@ pub fn load_for_site_and_date_and_time<'a>(
     let (sender, receiver) = unbounded();
 
     spawn(move || {
-        let arch = match Archive::connect(root) {
+        let arch = match Archive::connect(&root) {
             Ok(arch) => arch,
             Err(err) => {
                 sender
@@ -108,7 +107,10 @@ pub fn load_for_site_and_date_and_time<'a>(
 
         let start = time - Duration::days(days_back);
         let end = time + Duration::days(num_days(model));
-        let site_info = match arch.site_info(&site) {
+        let site_info = match arch
+            .station_num_for_id(&site, model)
+            .and_then(|stn_num| arch.site(stn_num).ok_or(BufkitDataErr::NotInIndex))
+        {
             Ok(site_info) => site_info,
             Err(err) => {
                 sender
@@ -118,15 +120,21 @@ pub fn load_for_site_and_date_and_time<'a>(
             }
         };
 
-        match arch.init_times_for_soundings_valid_between(start, end, &site_info.id, model) {
-            Ok(init_times) => {
-                let data = init_times
-                    .into_iter()
-                    .filter_map(|init_time| {
-                        load_string_from_archive(&arch, &site_info.id, init_time, model)
-                            .map(|str_data| (init_time, str_data))
+        match arch.retrieve_all_valid_in(site_info.station_num, model, start, end) {
+            Ok(data) => {
+                let data: Vec<(NaiveDateTime, String)> = data
+                    .filter_map(|string| {
+                        let init_time: NaiveDateTime =
+                            sounding_bufkit::BufkitData::init(&string, "")
+                                .ok()?
+                                .into_iter()
+                                .nth(0)
+                                .and_then(|(snd, _)| snd.valid_time())?;
+
+                        Some((init_time, string))
                     })
-                    .collect::<Vec<_>>();
+                    .collect();
+
                 let meta = MetaData {
                     site: site_info,
                     model: model.as_static_str().to_owned(),
@@ -162,25 +170,15 @@ pub fn load_site<'a>(
     load_for_site_and_date_and_time(arch, site, model, now, days_back)
 }
 
-/// Load all the model initialization itmes for all sites and models in the provided archive valid
+/// Load all the model initialization times for all sites and models in the provided archive valid
 /// before now and going days back.
 pub fn load_all_sites_and_models(arch: &Archive, days_back: i64) -> Receiver<Message> {
     let root = arch.root().to_path_buf();
     let (sender, receiver) = unbounded();
 
     spawn(move || {
-        let arch = match Archive::connect(root) {
+        let arch = match Archive::connect(&root) {
             Ok(arch) => arch,
-            Err(err) => {
-                sender
-                    .send(Message::from(InnerMessage::BufkitDataError(err)))
-                    .unwrap();
-                return;
-            }
-        };
-
-        let sites = match arch.sites() {
-            Ok(sites) => sites.into_iter(),
             Err(err) => {
                 sender
                     .send(Message::from(InnerMessage::BufkitDataError(err)))
@@ -192,35 +190,55 @@ pub fn load_all_sites_and_models(arch: &Archive, days_back: i64) -> Receiver<Mes
         let now = Utc::now().naive_utc();
         let start = now - Duration::days(days_back);
 
-        iproduct!(sites, Model::iter()).for_each(move |(site, model)| {
-            let end = now + Duration::days(num_days(model));
-            match arch.init_times_for_soundings_valid_between(start, end, &site.id, model) {
-                Ok(init_times) => {
-                    let data = init_times
-                        .into_iter()
-                        .filter_map(|init_time| {
-                            load_string_from_archive(&arch, &site.id, init_time, model)
-                                .map(|str_data| (init_time, str_data))
-                        })
-                        .collect::<Vec<_>>();
-                    let meta = MetaData {
-                        site,
-                        model: model.as_static_str().to_owned(),
-                        start,
-                        now,
-                        end,
-                    };
-
-                    let msg = InnerMessage::StringData(StringData { meta, data });
-                    sender.send(Message::from(msg)).unwrap();
-                }
+        for model in Model::iter() {
+            let sites_ids = match arch.sites_and_ids_for(model) {
+                Ok(sites_ids) => sites_ids,
                 Err(err) => {
                     sender
                         .send(Message::from(InnerMessage::BufkitDataError(err)))
                         .unwrap();
+                    return;
+                }
+            };
+
+            let end = now + Duration::days(num_days(model));
+
+            for (site_info, _site_id) in sites_ids.into_iter() {
+                match arch.retrieve_all_valid_in(site_info.station_num, model, start, end) {
+                    Ok(data) => {
+                        let data: Vec<(NaiveDateTime, String)> = data
+                            .filter_map(|string| {
+                                let init_time: NaiveDateTime =
+                                    sounding_bufkit::BufkitData::init(&string, "")
+                                        .ok()?
+                                        .into_iter()
+                                        .nth(0)
+                                        .and_then(|(snd, _)| snd.valid_time())?;
+
+                                Some((init_time, string))
+                            })
+                            .collect();
+
+                        let meta = MetaData {
+                            site: site_info,
+                            model: model.as_static_str().to_owned(),
+                            start,
+                            now,
+                            end,
+                        };
+
+                        let msg = InnerMessage::StringData(StringData { meta, data });
+
+                        sender.send(Message::from(msg)).unwrap();
+                    }
+                    Err(err) => {
+                        sender
+                            .send(Message::from(InnerMessage::BufkitDataError(err)))
+                            .unwrap();
+                    }
                 }
             }
-        });
+        }
     });
 
     receiver
@@ -233,13 +251,4 @@ fn num_days(model: Model) -> i64 {
         Model::NAM => 4,
         Model::NAM4KM => 3,
     }
-}
-
-fn load_string_from_archive(
-    arch: &Archive,
-    site: &str,
-    init_time: NaiveDateTime,
-    model: Model,
-) -> Option<String> {
-    arch.retrieve(site, model, init_time).ok()
 }

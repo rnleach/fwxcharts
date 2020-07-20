@@ -1,4 +1,4 @@
-use bufkit_data::Site;
+use bufkit_data::SiteInfo;
 use chrono::{Duration, NaiveDateTime};
 use std::collections::hash_map::{Entry, HashMap};
 
@@ -6,7 +6,7 @@ use std::collections::hash_map::{Entry, HashMap};
 /// is considered now, the site, and the model name for which the associated data is valid for.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MetaData {
-    pub site: Site,
+    pub site: SiteInfo,
     pub model: String,
     pub start: NaiveDateTime,
     pub now: NaiveDateTime,

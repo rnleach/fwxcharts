@@ -144,13 +144,17 @@ fn gp_plot_mrg(
     writeln!(
         gp,
         "main_title=\"Fire Weather Parameters - {} - {}\"",
-        meta_mg.site.name.as_ref().unwrap_or(&meta_mg.site.id),
+        meta_mg
+            .site
+            .name
+            .as_ref()
+            .unwrap_or(&meta_mg.site.description()),
         meta_mg.model.to_uppercase()
     )?;
     writeln!(
         gp,
         "output_name=\"{}_{}\"",
-        meta_mg.site.id,
+        meta_mg.site.station_num,
         meta_mg.model.to_uppercase()
     )?;
 
@@ -194,13 +198,13 @@ fn gp_plot_ens(
     writeln!(
         gp,
         "main_title=\"Fire Weather Parameters - {} - {}\"",
-        meta.site.name.as_ref().unwrap_or(&meta.site.id),
+        meta.site.name.as_ref().unwrap_or(&meta.site.description()),
         meta.model.to_uppercase()
     )?;
     writeln!(
         gp,
         "output_name=\"{}_{}_ens.png\"",
-        meta.site.id,
+        meta.site.station_num,
         meta.model.to_uppercase()
     )?;
 
@@ -227,14 +231,14 @@ fn gp_save(
     let fname_ens: PathBuf = PathBuf::from(&format!(
         "{}/{}_{}_ens.dat",
         prefix,
-        meta.site.id,
+        meta.site.station_num,
         meta.model.to_uppercase()
     ));
     let f_ens = &mut File::create(&fname_ens)?;
     let fname_mrg: PathBuf = PathBuf::from(&format!(
         "{}/{}_{}_mrg.dat",
         prefix,
-        meta.site.id,
+        meta.site.station_num,
         meta.model.to_uppercase()
     ));
     let f_mrg = &mut File::create(&fname_mrg)?;
@@ -242,7 +246,7 @@ fn gp_save(
     let fname_cli: PathBuf = PathBuf::from(&format!(
         "{}/{}_{}_cli.dat",
         prefix,
-        meta.site.id,
+        meta.site.station_num,
         meta.model.to_uppercase()
     ));
     let f_cli = &mut File::create(&fname_cli)?;
@@ -394,7 +398,7 @@ fn write_meta_data_header<W: Write>(meta: &MetaData, dest: &mut W) -> Result<(),
     writeln!(
         dest,
         "# Site: {}\n# Model: {}\n# Start: {}\n# Now: {}\n# End: {}\n",
-        meta.site.id,
+        meta.site.description(),
         meta.model,
         meta.start.format(GP_DATE_FORMAT),
         meta.now.format(GP_DATE_FORMAT),

@@ -1,6 +1,6 @@
 #![type_length_limit = "1115086"]
 use bufcli::{ClimoDB, ClimoQueryInterface};
-use bufkit_data::{Archive, Model, Site};
+use bufkit_data::{Archive, Model, SiteInfo, StationNumber};
 use chrono::{Duration, NaiveDate};
 use graphs::{load_for_site_and_date_and_time, load_from_files, plot_all, FileData};
 use std::error::Error;
@@ -32,9 +32,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let file_data = vec![
         FileData {
-            site: Site {
-                id: "KRR1".to_owned(),
-                name: None,
+            site: SiteInfo {
+                name: Some("KRR1".to_owned()),
+                station_num: StationNumber::from(1),
                 notes: None,
                 time_zone: None,
                 state: None,
@@ -53,9 +53,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             ],
         },
         FileData {
-            site: Site {
-                id: "KRR2".to_owned(),
-                name: None,
+            site: SiteInfo {
+                name: Some("KRR2".to_owned()),
+                station_num: StationNumber::from(2),
                 notes: None,
                 time_zone: None,
                 state: None,
@@ -74,9 +74,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             ],
         },
         FileData {
-            site: Site {
-                id: "KRR3".to_owned(),
-                name: None,
+            site: SiteInfo {
+                name: Some("KRR3".to_owned()),
+                station_num: StationNumber::from(3),
                 notes: None,
                 time_zone: None,
                 state: None,
@@ -95,9 +95,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             ],
         },
         FileData {
-            site: Site {
-                id: "KRR4".to_owned(),
-                name: None,
+            site: SiteInfo {
+                name: Some("KRR4".to_owned()),
+                station_num: StationNumber::from(4),
                 notes: None,
                 time_zone: None,
                 state: None,
@@ -116,9 +116,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             ],
         },
         FileData {
-            site: Site {
-                id: "KRR5".to_owned(),
-                name: None,
+            site: SiteInfo {
+                name: Some("KRR5".to_owned()),
+                station_num: StationNumber::from(5),
                 notes: None,
                 time_zone: None,
                 state: None,
@@ -137,9 +137,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             ],
         },
         FileData {
-            site: Site {
-                id: "KSEE".to_owned(),
-                name: None,
+            site: SiteInfo {
+                name: Some("KSEE".to_owned()),
+                station_num: StationNumber::from(6),
                 notes: None,
                 time_zone: None,
                 state: None,
@@ -158,9 +158,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             ],
         },
         FileData {
-            site: Site {
-                id: "KMSO".to_owned(),
-                name: None,
+            site: SiteInfo {
+                name: Some("KMSO".to_owned()),
+                station_num: StationNumber::from(727730),
                 notes: None,
                 time_zone: None,
                 state: None,

@@ -36,9 +36,9 @@ impl AnalyzedData {
         let lead_time = snd.lead_time().into_option()?;
 
         let hdw = hot_dry_windy(snd).unwrap_or(std::f64::NAN);
-        let (delta_t, height) = blow_up(snd)
+        let (delta_t, height) = blow_up(snd, None)
             // Extract the values I need to plot
-            .map(|bua| (bua.delta_t, bua.height))
+            .map(|bua| (bua.delta_t_lmib, bua.delta_z_lmib))
             // Plot a blank space (so use NAN marker) where there isn't a minimal blow up
             .map(|(dt, hgt)| {
                 if hgt > MIN_BLOWUP {
