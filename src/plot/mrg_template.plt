@@ -12,8 +12,6 @@
 # heredocs:
 #   $data
 #   $hdw_climo
-#   $blow_up_dt_climo
-#   $blow_up_height_climo
 
 #
 # Multiplot of some experimental fire weather paramters.
@@ -333,23 +331,9 @@ set bmargin screen 0.49
 set xtics scale 0
 set ylabel "Blow Up\nΔT [°C]"
 set ytics 2,2,18
-set palette negative
 set arrow from now_time, graph 0 to now_time, graph 1 nohead lc rgb "black"
-plot [start_time:end_time][0:20] \
-	$blow_up_dt_climo u 1:11:12 w filledcurves lc palette cb 95      notitle, \
-	""                u 1:10:11 w filledcurves lc palette cb 85      notitle, \
-	""                u 1:9:10  w filledcurves lc palette cb 75      notitle, \
-	""                u 1:8:9   w filledcurves lc palette cb 65      notitle, \
-	""                u 1:7:8   w filledcurves lc palette cb 55      notitle, \
-	""                u 1:6:7   w filledcurves lc palette cb 45      notitle, \
-	""                u 1:5:6   w filledcurves lc palette cb 35      notitle, \
-	""                u 1:4:5   w filledcurves lc palette cb 25      notitle, \
-	""                u 1:3:4   w filledcurves lc palette cb 25      notitle, \
-	""                u 1:2:3   w filledcurves lc palette cb  5      notitle, \
-	""                u 1:2     w l            lc rgb "gray"         notitle, \
-	""                u 1:12    w l            lc rgb "gray"         notitle, \
-	""                u 1:7     w l            lc rgb "black"   dt 2 t "Median", \
-	$data u 1:3 w l lc rgb "black" dt 1 notitle
+unset colorbox
+plot [start_time:end_time][0:20] $data u 1:3 w l lc rgb "black" dt 1 notitle
 
 #
 # Make the blow up height chart
@@ -368,23 +352,8 @@ set xlabel "Date and hour [UTC]\n" font ",14" offset 0, screen -0.05
 # Set up y-axis
 set ylabel "Blow up\nHeight [km]"
 set ytics 0,2
-set palette positive
 set arrow from now_time, graph 0 to now_time, graph 1 nohead lc rgb "black"
-plot [start_time:end_time][0:10 < *] \
-	$blow_up_height_climo u 1:($11/1000):($12/1000) w filledcurves lc palette cb 95      notitle, \
-	""                    u 1:($10/1000):($11/1000) w filledcurves lc palette cb 85      notitle, \
-	""                    u 1:($9/1000):($10/1000)  w filledcurves lc palette cb 75      notitle, \
-	""                    u 1:($8/1000):($9/1000)   w filledcurves lc palette cb 65      notitle, \
-	""                    u 1:($7/1000):($8/1000)   w filledcurves lc palette cb 55      notitle, \
-	""                    u 1:($6/1000):($7/1000)   w filledcurves lc palette cb 45      notitle, \
-	""                    u 1:($5/1000):($6/1000)   w filledcurves lc palette cb 35      notitle, \
-	""                    u 1:($4/1000):($5/1000)   w filledcurves lc palette cb 25      notitle, \
-	""                    u 1:($3/1000):($4/1000)   w filledcurves lc palette cb 25      notitle, \
-	""                    u 1:($2/1000):($3/1000)   w filledcurves lc palette cb  5      notitle, \
-	""                    u 1:($2/1000)             w l            lc rgb "gray"         notitle, \
-	""                    u 1:($12/1000)            w l            lc rgb "gray"         notitle, \
-	""                    u 1:($7/1000)             w l            lc rgb "black"   dt 2 t "Median", \
-	$data u 1:($4/1000) w l lc rgb "black" dt 1 notitle
+plot [start_time:end_time][0:10 < *] $data u 1:($4/1000) w l lc rgb "black" dt 1 notitle
 
 #
 # Clean up

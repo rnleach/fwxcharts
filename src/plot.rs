@@ -144,11 +144,7 @@ fn gp_plot_mrg(
     writeln!(
         gp,
         "main_title=\"Fire Weather Parameters - {} - {}\"",
-        meta_mg
-            .site
-            .name
-            .as_ref()
-            .unwrap_or(&meta_mg.site.description()),
+        meta_mg.site.description(),
         meta_mg.model.to_uppercase()
     )?;
     writeln!(
@@ -165,16 +161,6 @@ fn gp_plot_mrg(
     // Try to get the climate data for the HDW and add that to the data
     writeln!(gp, "$hdw_climo << EOD")?;
     write_climo(&meta_mg, ClimoElement::HDW, gp, &mut climo)?;
-    writeln!(gp, "EOD")?;
-
-    // Try to get the climate data for the BlowUpDt and add that to the data
-    writeln!(gp, "$blow_up_dt_climo << EOD")?;
-    write_climo(&meta_mg, ClimoElement::BlowUpDt, gp, &mut climo)?;
-    writeln!(gp, "EOD")?;
-
-    // Try to get the climate data for the BlowUpHeight and add that to the data
-    writeln!(gp, "$blow_up_height_climo << EOD")?;
-    write_climo(&meta_mg, ClimoElement::BlowUpHeight, gp, &mut climo)?;
     writeln!(gp, "EOD")?;
 
     // Draw the graph

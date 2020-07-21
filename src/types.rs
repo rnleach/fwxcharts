@@ -22,13 +22,6 @@ impl ModelTimes for Sounding {
     }
 }
 
-impl<T: ValidTime> ValidTime for Vec<T> {
-    // Assumes all items in the vector have the same valid time.
-    fn valid_time(&self) -> Option<NaiveDateTime> {
-        self.get(0).and_then(|t| t.valid_time())
-    }
-}
-
 /// Parse a string into a `TimeSeries` of `sounding_analysis::Analysis` objects.
 pub fn parse_sounding(
     str_data: &str,
